@@ -3,7 +3,7 @@
 [![GitHub release](https://img.shields.io/github/release/Homebrew/brew.svg)](https://github.com/Homebrew/brew/releases)
 [![License](https://img.shields.io/github/license/Homebrew/brew)](https://github.com/Homebrew/brew/blob/HEAD/LICENSE.txt)
 
-Features, usage and installation instructions are [summarised on the homepage](https://brew.sh). Terminology (e.g. the difference between a Cellar, Tap, Cask and so forth) is [explained here](https://docs.brew.sh/Formula-Cookbook#homebrew-terminology).
+Features, usage and installation instructions are [summarised on the homepage](https://brew.sh). Terminology l(e.g. the difference between a Cellar, Tap, Cask and so forth) is [explained here](https://docs.brew.sh/Formula-Cookbook#homebrew-terminology).
 
 ## What Packages Are Available?
 
