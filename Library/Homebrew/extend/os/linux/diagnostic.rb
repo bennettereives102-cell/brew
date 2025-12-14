@@ -151,7 +151,8 @@ module OS
 
           <<~EOS
             Your Linux core repository is still linuxbrew-core.
-            You must `brew update` to update to homebrew-core.
+            You must either unset `$HOMEBREW_NO_INSTALL_FROM_API` or set
+            the repository's remote to homebrew-core to update core formulae.
           EOS
         end
 
@@ -208,7 +209,7 @@ module OS
             # There are other checks that test that, we can skip broken kegs.
             next if dependent_prefix.nil? || !dependent_prefix.exist? || !dependent_prefix.directory?
 
-            keg = Keg.new(dependent_prefix)
+            keg = ::Keg.new(dependent_prefix)
             keg.binary_executable_or_library_files.any? do |binary|
               paths = binary.rpaths
               versioned_linkage = paths.any? { |path| path.match?(%r{lib/gcc/\d+$}) }

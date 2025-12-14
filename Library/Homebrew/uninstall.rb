@@ -1,4 +1,4 @@
-# typed: true # rubocop:todo Sorbet/StrictSigil
+# typed: strict
 # frozen_string_literal: true
 
 require "dependents_message"
@@ -10,6 +10,15 @@ module Homebrew
   module Uninstall
     extend ::Utils::Output::Mixin
 
+    sig {
+      params(
+        kegs_by_rack:        T::Hash[Pathname, T::Array[Keg]],
+        casks:               T::Array[Cask::Cask],
+        force:               T::Boolean,
+        ignore_dependencies: T::Boolean,
+        named_args:          T::Array[String],
+      ).void
+    }
     def self.uninstall_kegs(kegs_by_rack, casks: [], force: false, ignore_dependencies: false, named_args: [])
       handle_unsatisfied_dependents(kegs_by_rack,
                                     casks:,
@@ -72,7 +81,11 @@ module Homebrew
 
               unversioned_name = f.name.gsub(/@.+$/, "")
               maybe_paths = Dir.glob("#{f.etc}/#{unversioned_name}*")
-              excluded_names = Homebrew::API.formula_names
+              excluded_names = if Homebrew::EnvConfig.no_install_from_api?
+                Formula.names
+              else
+                Homebrew::API.formula_names
+              end
               maybe_paths = maybe_paths.reject do |path|
                 # Remove extension only if a file
                 # (e.g. directory with name "openssl@1.1" will be trimmed to "openssl@1")
@@ -108,6 +121,14 @@ module Homebrew
       end
     end
 
+    sig {
+      params(
+        kegs_by_rack:        T::Hash[Pathname, T::Array[Keg]],
+        casks:               T::Array[Cask::Cask],
+        ignore_dependencies: T::Boolean,
+        named_args:          T::Array[String],
+      ).void
+    }
     def self.handle_unsatisfied_dependents(kegs_by_rack, casks: [], ignore_dependencies: false, named_args: [])
       return if ignore_dependencies
 
@@ -118,6 +139,7 @@ module Homebrew
       nil
     end
 
+    sig { params(kegs: T::Array[Keg], casks: T::Array[Cask::Cask], named_args: T::Array[String]).returns(T::Boolean) }
     def self.check_for_dependents!(kegs, casks: [], named_args: [])
       return false unless (result = InstalledDependents.find_some_installed_dependents(kegs, casks:))
 
@@ -125,6 +147,7 @@ module Homebrew
       true
     end
 
+    sig { params(rack: Pathname).void }
     def self.rm_pin(rack)
       Formulary.from_rack(rack).unpin
     rescue

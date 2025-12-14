@@ -57,7 +57,7 @@ then
 
   HOMEBREW_MACOS_VERSION="$(/usr/bin/sw_vers -productVersion)"
 
-  IFS=. read -r -a MACOS_VERSION_ARRAY <<<"${HOMEBREW_MACOS_VERSION}"
+  IFS=. read -r -a MACOS_VERSION_ARRAY < <(printf '%s' "${HOMEBREW_MACOS_VERSION}")
   printf -v HOMEBREW_MACOS_VERSION_NUMERIC "%02d%02d%02d" "${MACOS_VERSION_ARRAY[@]}"
 
   unset MACOS_VERSION_ARRAY
@@ -617,7 +617,7 @@ then
     HOMEBREW_PHYSICAL_PROCESSOR="arm64"
   fi
 
-  IFS=. read -r -a MACOS_VERSION_ARRAY <<<"${HOMEBREW_MACOS_OLDEST_ALLOWED}"
+  IFS=. read -r -a MACOS_VERSION_ARRAY < <(printf '%s' "${HOMEBREW_MACOS_OLDEST_ALLOWED}")
   printf -v HOMEBREW_MACOS_OLDEST_ALLOWED_NUMERIC "%02d%02d%02d" "${MACOS_VERSION_ARRAY[@]}"
 
   unset MACOS_VERSION_ARRAY
@@ -654,6 +654,15 @@ then
   # Some Git versions are too old for some Homebrew functionality we rely on.
   HOMEBREW_MINIMUM_GIT_VERSION="2.14.3"
 else
+  if [[ -r "/proc/cpuinfo" ]] &&
+     [[ "${HOMEBREW_PROCESSOR}" == "x86_64" ]]
+  then
+    if ! grep -E "^(flags|Features)" /proc/cpuinfo | grep -q "ssse3"
+    then
+      odie "Homebrew's x86_64 support on Linux requires a CPU with SSSE3 support!"
+    fi
+  fi
+
   HOMEBREW_PRODUCT="${HOMEBREW_SYSTEM}brew"
   # Don't try to follow /etc/os-release
   # shellcheck disable=SC1091,SC2154
@@ -693,7 +702,7 @@ Minimum required version: ${HOMEBREW_MINIMUM_CURL_VERSION}
   git_version_output="$(${HOMEBREW_GIT} --version 2>/dev/null)"
   # $extra is intentionally discarded.
   # shellcheck disable=SC2034
-  IFS='.' read -r major minor micro build extra <<<"${git_version_output##* }"
+  IFS='.' read -r major minor micro build extra < <(printf '%s' "${git_version_output##* }")
   if [[ "$(numeric "${major}.${minor}.${micro}.${build}")" -lt "$(numeric "${HOMEBREW_MINIMUM_GIT_VERSION}")" ]]
   then
     message="Please update your system Git or set HOMEBREW_GIT_PATH to a newer version.
@@ -714,14 +723,6 @@ Minimum required version: ${HOMEBREW_MINIMUM_GIT_VERSION}
   fi
 
   HOMEBREW_LINUX_MINIMUM_GLIBC_VERSION="2.13"
-
-  HOMEBREW_CORE_REPOSITORY_ORIGIN="$("${HOMEBREW_GIT}" -C "${HOMEBREW_CORE_REPOSITORY}" remote get-url origin 2>/dev/null)"
-  if [[ "${HOMEBREW_CORE_REPOSITORY_ORIGIN}" =~ (/linuxbrew|Linuxbrew/homebrew)-core(\.git)?$ ]]
-  then
-    # triggers migration code in update.sh
-    # shellcheck disable=SC2034
-    HOMEBREW_LINUXBREW_CORE_MIGRATION=1
-  fi
 fi
 
 setup_ca_certificates() {

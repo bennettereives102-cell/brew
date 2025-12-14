@@ -4,7 +4,18 @@
 require "system_command"
 require "extend/pathname/disk_usage_extension"
 require "extend/pathname/observer_pathname_extension"
+require "extend/pathname/write_mkpath_extension"
 require "utils/output"
+
+# Stubs needed to keep Sorbet happy.
+module MachOShim; end
+module ELFShim; end
+
+# @api private
+module BinaryPathname
+  sig { params(path: T.any(Pathname, String, MachOShim, ELFShim)).returns(T.any(MachOShim, ELFShim)) }
+  def self.wrap(path) = raise NotImplementedError
+end
 
 # Homebrew extends Ruby's `Pathname` to make our code more readable.
 # @see https://ruby-doc.org/stdlib-2.6.3/libdoc/pathname/rdoc/Pathname.html Ruby's Pathname API
@@ -12,6 +23,11 @@ class Pathname
   include SystemCommand::Mixin
   include DiskUsageExtension
   include Utils::Output::Mixin
+
+  sig { void }
+  def self.activate_extensions!
+    Pathname.prepend(WriteMkpathExtension)
+  end
 
   # Moves a file from the original location to the {Pathname}'s.
   #

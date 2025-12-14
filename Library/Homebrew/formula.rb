@@ -887,7 +887,7 @@ class Formula
   #
   # @api internal
   sig { returns(T::Boolean) }
-  def linked? = linked_keg.symlink?
+  def linked? = linked_keg.exist?
 
   # Is the formula linked to `opt`?
   sig { returns(T::Boolean) }
@@ -1591,6 +1591,13 @@ class Formula
   # @see .deprecate!
   delegate deprecation_replacement_cask: :"self.class"
 
+  # The arguments that were used to deprecate this {Formula}.
+  # Returns `nil` if `deprecate!` was not called.
+  # @!method deprecate_args
+  # @return [Hash<Symbol, Object>]
+  # @api private
+  delegate deprecate_args: :"self.class"
+
   # Whether this {Formula} is disabled (i.e. cannot be installed).
   # Defaults to false.
   # @!method disabled?
@@ -1626,14 +1633,18 @@ class Formula
   # @see .disable!
   delegate disable_replacement_cask: :"self.class"
 
+  # The arguments that were used to disable this {Formula}.
+  # Returns `nil` if `disable!` was not called.
+  # @!method disable_args
+  # @return [Hash<Symbol, Object>]
+  # @api private
+  delegate disable_args: :"self.class"
+
   sig { returns(T::Boolean) }
   def skip_cxxstdlib_check?
     odeprecated "`Formula#skip_cxxstdlib_check?`"
     false
   end
-
-  sig { returns(T::Boolean) }
-  def require_universal_deps? = false
 
   sig { void }
   def patch
@@ -1975,14 +1986,16 @@ class Formula
 
   # Standard parameters for npm builds.
   #
+  # @param prefix [String, Pathname, false] installation prefix (default: libexec)
+  # @param ignore_scripts [Boolean] whether to add --ignore-scripts flag (default: true)
   # @api public
-  sig { params(prefix: T.any(String, Pathname, FalseClass)).returns(T::Array[String]) }
-  def std_npm_args(prefix: libexec)
+  sig { params(prefix: T.any(String, Pathname, FalseClass), ignore_scripts: T::Boolean).returns(T::Array[String]) }
+  def std_npm_args(prefix: libexec, ignore_scripts: true)
     require "language/node"
 
-    return Language::Node.std_npm_install_args(Pathname(prefix)) if prefix
+    return Language::Node.std_npm_install_args(Pathname(prefix), ignore_scripts:) if prefix
 
-    Language::Node.local_npm_install_args
+    Language::Node.local_npm_install_args(ignore_scripts:)
   end
 
   # Standard parameters for pip builds.
@@ -2111,11 +2124,12 @@ class Formula
     raise "No universal binaries found to deuniversalize" if targets.blank?
 
     targets.compact.each do |target|
-      extract_macho_slice_from(Pathname(target), Hardware::CPU.arch)
+      target = MachOPathname.wrap(target)
+      extract_macho_slice_from(target, Hardware::CPU.arch)
     end
   end
 
-  sig { params(file: Pathname, arch: T.nilable(Symbol)).void }
+  sig { params(file: MachOShim, arch: T.nilable(Symbol)).void }
   def extract_macho_slice_from(file, arch = Hardware::CPU.arch)
     odebug "Extracting #{arch} slice from #{file}"
     file.ensure_writable do
@@ -2700,11 +2714,13 @@ class Formula
       "deprecation_reason"              => deprecation_reason,
       "deprecation_replacement_formula" => deprecation_replacement_formula,
       "deprecation_replacement_cask"    => deprecation_replacement_cask,
+      "deprecate_args"                  => deprecate_args,
       "disabled"                        => disabled?,
       "disable_date"                    => disable_date,
       "disable_reason"                  => disable_reason,
       "disable_replacement_formula"     => disable_replacement_formula,
       "disable_replacement_cask"        => disable_replacement_cask,
+      "disable_args"                    => disable_args,
       "post_install_defined"            => post_install_defined?,
       "service"                         => (service.to_hash if service?),
       "tap_git_head"                    => tap_git_head,
@@ -3602,14 +3618,14 @@ class Formula
     # @see https://spdx.github.io/spdx-spec/latest/annexes/spdx-license-expressions/ SPDX license expression guide
     # @api public
     sig {
-      params(args: T.nilable(T.any(String, Symbol, T::Hash[T.any(String, Symbol), T.anything])))
-        .returns(T.nilable(T.any(String, Symbol, T::Hash[T.any(String, Symbol), T.anything])))
+      params(args: T.nilable(SPDX::LicenseExpression))
+        .returns(T.nilable(SPDX::LicenseExpression))
     }
     def license(args = nil)
       if args.nil?
         @licenses
       else
-        @licenses = T.let(args, T.nilable(T.any(String, Symbol, T::Hash[T.any(String, Symbol), T.anything])))
+        @licenses = T.let(args, T.nilable(SPDX::LicenseExpression))
       end
     end
 
@@ -3936,7 +3952,7 @@ class Formula
     # ```
     #
     # @api public
-    sig { params(block: T.nilable(T.proc.returns(SoftwareSpec))).returns(T.untyped) }
+    sig { params(block: T.nilable(T.proc.void)).returns(T.untyped) }
     def stable(&block)
       return T.must(@stable) unless block
 
@@ -4137,11 +4153,6 @@ class Formula
     # Note that for {.depends_on} that are `:optional` or `:recommended`, options
     # are generated automatically.
     #
-    # There are also some special options:
-    #
-    # - `:universal`: build a universal binary/library (e.g. on newer Intel Macs
-    #   this means a combined x86_64/x86 binary/library).
-    #
     # ### Examples
     #
     # ```ruby
@@ -4152,14 +4163,15 @@ class Formula
     # option "with-qt", "Text here overwrites what's autogenerated by 'depends_on "qt" => :optional'"
     # ```
     #
-    # ```ruby
-    # option :universal
-    # ```
-    #
     # @api public
-    sig { params(name: String, description: String).void }
+    sig { params(name: T.any(String, Symbol), description: String).void }
     def option(name, description = "")
-      specs.each { |spec| spec.option(name, description) }
+      case name
+      when Symbol
+        odeprecated "`option :#{name}`"
+      else
+        specs.each { |spec| spec.option(name, description) }
+      end
     end
 
     # Deprecated options are used to rename options and migrate users who used
@@ -4378,20 +4390,20 @@ class Formula
       specs.each { |spec| spec.fails_with(compiler, &block) }
     end
 
-    # Marks the {Formula} as needing a certain standard, so Homebrew
-    # will fall back to other compilers if the default compiler
-    # does not implement that standard.
+    # Used to mark the {Formula} as needing a certain standard, so Homebrew
+    # would fall back to other compilers if the default compiler
+    # did not implement that standard.
     #
-    # We generally prefer to {.depends_on} a desired compiler and to
-    # explicitly use that compiler in a formula's {#install} block,
+    # This is now a no-op as we prefer to {.depends_on} a desired compiler
+    # and explicitly use that compiler in a formula's {#install} block,
     # rather than implicitly finding a suitable compiler with `needs`.
     #
     # @see .fails_with
     #
     # @api public
-    sig { params(standards: String).void }
-    def needs(*standards)
-      specs.each { |spec| spec.needs(*standards) }
+    sig { params(_standards: Symbol).void }
+    def needs(*_standards)
+      odeprecated "`needs :openmp`", '`depends_on "gcc"`'
     end
 
     # A test is required for new formulae and makes us happy.
@@ -4628,13 +4640,18 @@ class Formula
         )
       end
 
+      @deprecate_args = T.let(
+        { date:, because:, replacement_formula:, replacement_cask: },
+        T.nilable(T::Hash[Symbol, T.nilable(T.any(String, Symbol))]),
+      )
+
       @deprecation_date = T.let(Date.parse(date), T.nilable(Date))
       return if T.must(@deprecation_date) > Date.today
 
       @deprecation_reason = T.let(because, T.nilable(T.any(String, Symbol)))
       @deprecation_replacement_formula = T.let(replacement_formula.presence || replacement, T.nilable(String))
       @deprecation_replacement_cask = T.let(replacement_cask.presence || replacement, T.nilable(String))
-      T.must(@deprecated = T.let(true, T.nilable(T::Boolean)))
+      @deprecated = T.let(true, T.nilable(T::Boolean))
     end
 
     # Whether this {Formula} is deprecated (i.e. warns on installation).
@@ -4673,6 +4690,14 @@ class Formula
     # @see .deprecate!
     sig { returns(T.nilable(String)) }
     attr_reader :deprecation_replacement_cask
+
+    # The arguments that were passed to deprecate!.
+    #
+    # @return [nil] if deprecate! was not called.
+    # @see .deprecate!
+    # @api private
+    sig { returns(T.nilable(T::Hash[Symbol, T.nilable(T.any(String, Symbol))])) }
+    attr_reader :deprecate_args
 
     # Disables a {Formula} (on the given date) so it cannot be
     # installed. If the date has not yet passed the formula
@@ -4716,9 +4741,14 @@ class Formula
       if replacement
         odeprecated(
           "disable!(:replacement)",
-          "disable!(:replacement_formula) or deprecate!(:replacement_cask)",
+          "disable!(:replacement_formula) or disable!(:replacement_cask)",
         )
       end
+
+      @disable_args = T.let(
+        { date:, because:, replacement_formula:, replacement_cask: },
+        T.nilable(T::Hash[Symbol, T.nilable(T.any(String, Symbol))]),
+      )
 
       @disable_date = T.let(Date.parse(date), T.nilable(Date))
 
@@ -4772,6 +4802,14 @@ class Formula
     # @see .disable!
     sig { returns(T.nilable(String)) }
     attr_reader :disable_replacement_cask
+
+    # The arguments that were passed to disable!.
+    #
+    # @return [nil] if disable! was not called.
+    # @see .disable!
+    # @api private
+    sig { returns(T.nilable(T::Hash[Symbol, T.nilable(T.any(String, Symbol))])) }
+    attr_reader :disable_args
 
     # Permit overwriting certain files while linking.
     #

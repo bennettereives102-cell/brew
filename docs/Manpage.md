@@ -137,7 +137,9 @@ and are now no longer needed.
 ### `bundle` \[*`subcommand`*\]
 
 Bundler for non-Ruby dependencies from Homebrew, Homebrew Cask, Mac App Store,
-Visual Studio Code (and forks/variants) and Go packages.
+Visual Studio Code (and forks/variants), Go packages and Flatpak.
+
+Note: Flatpak support is only available on Linux.
 
 `brew bundle` \[`install`\]
 
@@ -199,7 +201,7 @@ By default, only Homebrew formula dependencies are listed.
   corresponding type. Passing `--formula` also removes matches against formula
   aliases and old formula names.
 
-`brew bundle exec` \[`--check`\] *`command`*
+`brew bundle exec` \[`--check`\] \[`--no-secrets`\] *`command`*
 
 : Run an external command in an isolated build environment based on the
   `Brewfile` dependencies.
@@ -210,11 +212,11 @@ commands like `bundle install`, `npm install`, etc. It will also add compiler
 flags which will help with finding keg-only dependencies like `openssl`,
 `icu4c`, etc.
 
-`brew bundle sh` \[`--check`\]
+`brew bundle sh` \[`--check`\] \[`--no-secrets`\]
 
 : Run your shell in a `brew bundle exec` environment.
 
-`brew bundle env` \[`--check`\]
+`brew bundle env` \[`--check`\] \[`--no-secrets`\]
 
 : Print the environment variables that would be set in a `brew bundle exec`
   environment.
@@ -300,6 +302,10 @@ flags which will help with finding keg-only dependencies like `openssl`,
 
 : `list` or `dump` Go packages.
 
+`--flatpak`
+
+: `list` or `dump` Flatpak packages. Note: Linux only.
+
 `--no-vscode`
 
 : `dump` without VSCode (and forks/variants) extensions. Enabled by default if
@@ -309,6 +315,11 @@ flags which will help with finding keg-only dependencies like `openssl`,
 
 : `dump` without Go packages. Enabled by default if
   `$HOMEBREW_BUNDLE_DUMP_NO_GO` is set.
+
+`--no-flatpak`
+
+: `dump` without Flatpak packages. Enabled by default if
+  `$HOMEBREW_BUNDLE_DUMP_NO_FLATPAK` is set.
 
 `--describe`
 
@@ -327,7 +338,12 @@ flags which will help with finding keg-only dependencies like `openssl`,
 `--check`
 
 : Check that all dependencies in the Brewfile are installed before running
-  `exec`, `sh`, or `env`.
+  `exec`, `sh`, or `env`. Enabled by default if `$HOMEBREW_BUNDLE_CHECK` is set.
+
+`--no-secrets`
+
+: Attempt to remove secrets from the environment before `exec`, `sh`, or `env`.
+  Enabled by default if `$HOMEBREW_BUNDLE_NO_SECRETS` is set.
 
 ### `casks`
 
@@ -2448,8 +2464,8 @@ Summarise contributions to Homebrew repositories.
 
 `--quarter`
 
-: Quarter to search (1-4). Omitting this flag searches the past year. If
-  `--from` or `--to` are set, they take precedence.
+: Homebrew contributions quarter to search (1-4). Omitting this flag searches
+  the past year. If `--from` or `--to` are set, they take precedence.
 
 `--from`
 
@@ -3141,13 +3157,22 @@ Generate Homebrew's RubyDoc documentation.
 
 : Open generated documentation in a browser.
 
-### `sh` \[`--env=`\] \[`--cmd=`\] \[*`file`*\]
+### `sh` \[*`options`*\] \[*`file`*\]
 
 Enter an interactive shell for Homebrew's build environment. Use
 years-battle-hardened build logic to help your `./configure && make && make
 install` and even your `gem install` succeed. Especially handy if you run
 Homebrew in an Xcode-only configuration since it adds tools like `make` to your
 `$PATH` which build systems would not find otherwise.
+
+With `--ruby`, enter an interactive shell for Homebrew's Ruby environment. This
+sets up the correct Ruby paths, `$GEM_HOME` and bundle configuration used by
+Homebrew's development tools. The environment includes gems from the installed
+groups, making tools like RuboCop, Sorbet and RSpec available via `bundle exec`.
+
+`-r`, `--ruby`
+
+: Set up Homebrew's Ruby environment.
 
 `--env`
 
@@ -4579,20 +4604,16 @@ Homebrew API: <https://docs.brew.sh/rubydoc/>
 
 Homebrew's Project Leader is Mike McQuaid.
 
-Homebrew's Project Leadership Committee is Colin Dean, Michka Popoff, Mike
-McQuaid, Patrick Linnane and Vanessa Gennarelli.
+Homebrew's Lead Maintainers are Bevan Kay, Bo Anderson, Branch Vincent, Carlo
+Cabrera, Dustin Rodrigues, FX Coudert, Issy Long, Justin Krehel, Michael Cho,
+Michka Popoff, Mike McQuaid, Nanda H Krishna, Patrick Linnane, Rui Chen, Ruoyu
+Zhong, Sam Ford, Sean Molenaar and Thierry Moisan.
 
-Homebrew's Technical Steering Committee is Bo Anderson, Issy Long, Michael Cho,
-Mike McQuaid and Ruoyu Zhong.
+Homebrew's other Maintainers are Anton Melnikov, Caleb Xu, Daeho Ro, Douglas
+Eichelberger, Eric Knibbe, Klaus Hipp, Markus Reiter, Rylan Polster, Štefan
+Baebler and William Woodruff.
 
-Homebrew's maintainers are Anton Melnikov, Bevan Kay, Bo Anderson, Branch
-Vincent, Caleb Xu, Carlo Cabrera, Daeho Ro, Douglas Eichelberger, Dustin
-Rodrigues, Eric Knibbe, FX Coudert, Issy Long, Justin Krehel, Klaus Hipp, Markus
-Reiter, Michael Cho, Michka Popoff, Mike McQuaid, Nanda H Krishna, Patrick
-Linnane, Rui Chen, Ruoyu Zhong, Rylan Polster, Sam Ford, Sean Molenaar, Štefan
-Baebler, Thierry Moisan and William Woodruff.
-
-Former maintainers with significant contributions include Alexander Bayandin,
+Former Maintainers with significant contributions include Alexander Bayandin,
 Miccal Matthews, Misty De Méo, Shaun Jackman, Vítor Galvão, Claudia Pellegrino,
 Seeker, Jan Viljanen, JCount, commitay, Dominyk Tiller, Tim Smith, Baptiste
 Fontaine, Xu Cheng, Martin Afanasjew, Brett Koonce, Charlie Sharpsteen, Jack

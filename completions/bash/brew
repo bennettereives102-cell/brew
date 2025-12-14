@@ -675,6 +675,7 @@ _brew_bundle() {
       --debug
       --describe
       --file
+      --flatpak
       --force
       --formula
       --global
@@ -682,8 +683,10 @@ _brew_bundle() {
       --help
       --install
       --mas
+      --no-flatpak
       --no-go
       --no-restart
+      --no-secrets
       --no-upgrade
       --no-vscode
       --quiet
@@ -2448,6 +2451,7 @@ _brew_sh() {
       --env
       --help
       --quiet
+      --ruby
       --verbose
       "
       return
