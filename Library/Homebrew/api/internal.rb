@@ -5,7 +5,7 @@ require "cachable"
 require "api"
 require "api/source_download"
 require "download_queue"
-require "formula_stub"
+require "api/formula_internal_stub"
 
 module Homebrew
   module API
@@ -25,9 +25,11 @@ module Homebrew
         "internal/cask.#{SimulateSystem.current_tag}.jws.json"
       end
 
-      sig { params(name: String).returns(Homebrew::FormulaStub) }
-      def self.formula_stub(name)
-        return cache["formula_stubs"][name] if cache.key?("formula_stubs") && cache["formula_stubs"].key?(name)
+      sig { params(name: String).returns(Homebrew::API::FormulaInternalStub) }
+      def self.formula_internal_stub(name)
+        if cache.key?("formula_internal_stubs") && cache["formula_internal_stubs"].key?(name)
+          return cache["formula_internal_stubs"][name]
+        end
 
         stub_array = formula_arrays[name]
         raise "No formula stub found for #{name}" unless stub_array
@@ -40,18 +42,19 @@ module Homebrew
           oldname if newname == name
         end
 
-        stub = Homebrew::FormulaStub.new(
+        stub = Homebrew::API::FormulaInternalStub.new(
           name:           name,
           pkg_version:    PkgVersion.parse(stub_array[0]),
           version_scheme: stub_array[1],
           rebuild:        stub_array[2],
           sha256:         stub_array[3],
+          dependencies:   stub_array[4],
           aliases:,
           oldnames:,
         )
 
-        cache["formula_stubs"] ||= {}
-        cache["formula_stubs"][name] = stub
+        cache["formula_internal_stubs"] ||= {}
+        cache["formula_internal_stubs"][name] = stub
 
         stub
       end
@@ -87,7 +90,7 @@ module Homebrew
       sig { returns(T::Boolean) }
       def self.download_and_cache_formula_data!
         json_contents, updated = fetch_formula_api!
-        cache["formula_stubs"] = {}
+        cache["formula_internal_stubs"] = {}
         cache["formula_aliases"] = json_contents["aliases"]
         cache["formula_renames"] = json_contents["renames"]
         cache["formula_tap_migrations"] = json_contents["tap_migrations"]
@@ -124,7 +127,7 @@ module Homebrew
         Homebrew::API.write_names_file!(cask_hashes.keys, "cask", regenerate:)
       end
 
-      sig { returns(T::Hash[String, [String, Integer, Integer, T.nilable(String)]]) }
+      sig { returns(T::Hash[String, [String, Integer, Integer, T.nilable(String), T::Array[String]]]) }
       def self.formula_arrays
         unless cache.key?("formula_arrays")
           updated = download_and_cache_formula_data!
